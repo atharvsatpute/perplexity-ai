@@ -3,6 +3,8 @@ import axios from "axios";
 import "./App.css";
 
 export default function LoginPage() {
+    console.log("LoginPage mounted");
+
     const [started, setStarted] = useState(false);
     const [input, setInput] = useState("");
     const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -17,6 +19,13 @@ export default function LoginPage() {
     const startApp = () => {
         if (!started) setStarted(true);
     };
+
+    // ---------------- AUTO CREATE CHAT ----------------
+    useEffect(() => {
+        if (!activeChatId) {
+            createNewChat();
+        }
+    }, []);
 
     // ---------------- ACTIVE CHAT ----------------
     const activeChat = chats.find((c) => c.id === activeChatId);
@@ -43,9 +52,9 @@ export default function LoginPage() {
             prev.map((chat) =>
                 chat.id === chatId
                     ? {
-                        ...chat,
-                        messages: [...chat.messages, {text, type}],
-                    }
+                          ...chat,
+                          messages: [...chat.messages, { text, type }],
+                      }
                     : chat
             )
         );
@@ -54,12 +63,11 @@ export default function LoginPage() {
     // ---------------- SEND MESSAGE ----------------
     const handleSend = () => {
         if (input.trim() === "") return;
-        setIsTyping(false)
+        setIsTyping(false);
         startApp();
 
         let chatId = activeChatId;
 
-        // if no chat → create one
         if (!chatId) {
             chatId = createNewChat();
         }
@@ -73,13 +81,13 @@ export default function LoginPage() {
 
         setTimeout(async () => {
             try {
-                const res = await axios.post("http://0.0.0.0:8000/query", {
+                const res = await axios.post("http://127.0.0.1:8000/query", {
                     query: userText,
                 });
 
                 const reply = res.data.answer;
 
-                addMessage(reply, "ai", chatId);
+                addMessage(String(reply), "ai", chatId);
             } catch (err) {
                 console.log(err);
                 addMessage("⚠️ Error getting response from server", "ai", chatId);
@@ -140,26 +148,20 @@ export default function LoginPage() {
 
     return (
         <div className="app">
-
-            {/!* BACKGROUND *!/}
             <div className="bg"></div>
 
-            {/!* SIDEBAR *!/}
             <div className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
-
-
                 {sidebarOpen && (
                     <>
                         <div className="top-actions">
                             <div className="logo">⚡ Atharv AI</div>
                         </div>
 
-                        {/!* NEW CHAT *!/}
+                        {/* NEW CHAT */}
                         <div className="newchat" onClick={handleNewChat}>
                             + New Chat
                         </div>
 
-                        {/!* HISTORY *!/}
                         <div className="history-list">
                             {chats.map((chat) => (
                                 <div
@@ -175,28 +177,32 @@ export default function LoginPage() {
                 )}
             </div>
 
-            {/!* MAIN *!/}
             <div className="main">
-
                 <div className="top">Atharv AI Assistant</div>
 
-                {/!* CHAT *!/}
                 <div className="chat">
-
                     {messages.map((msg, i) => (
                         <div key={i} className={`msg ${msg.type}`}>
                             {msg.type === "ai" ? (
                                 <div className="code-box">
-                                    <button
-                                        className="copy-btn"
-                                        onClick={() =>
-                                            navigator.clipboard.writeText(msg.text)
-                                        }
-                                    >
-                                        ⧉
-                                    </button>
+                               <button
+    className="copy-btn"
+    onClick={() =>
+        navigator.clipboard.writeText(String(msg.text))
+    }
+>
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        height="18px"
+        viewBox="0 -960 960 960"
+        width="18px"
+        fill="#e3e3e3"
+    >
+        <path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/>
+    </svg>
+</button>
 
-                                    <pre>{msg.text}</pre>
+                                    <pre>{String(msg.text)}</pre>
                                 </div>
                             ) : (
                                 <div>{msg.text}</div>
@@ -211,7 +217,6 @@ export default function LoginPage() {
                     )}
                 </div>
 
-                {/!* INPUT *!/}
                 <div className={`input-area ${started ? "active" : ""}`}>
                     <div className="input-box">
                         <input
@@ -226,19 +231,22 @@ export default function LoginPage() {
                             }
                         />
 
-                        <button className="send-btn" onClick={handleSend} style={{"color": "black"}}>
-                            ➤
+                        <button
+                            className="send-btn"
+                            onClick={handleSend}
+
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e3e3e3"><path d="M440-160v-487L216-423l-56-57 320-320 320 320-56 57-224-224v487h-80Z"/></svg>
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/!* WELCOME *!/}
-            {!started && (
+            {messages.length === 0 && (
                 <div className="welcome">
                     <div className="card">
                         <h2>Hey 👋</h2>
-                        <p style={{color: "#aaa"}}>
+                        <p style={{ color: "#aaa" }}>
                             How can I help you today?
                         </p>
 
