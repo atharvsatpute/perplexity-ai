@@ -1,0 +1,6 @@
+Artificial Intelligence (AI) is the simulation of human intelligence in machines.
+Machine learning is a subset of AI that allows systems to learn from data.
+Deep learning is a technique using neural networks.
+AI is widely used in healthcare, finance, and automation.
+
+capital of india is delhi
