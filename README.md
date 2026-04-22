@@ -2,17 +2,11 @@
 
 > Production RAG-based AI search system — FastAPI + FAISS + Groq LLM + React, deployed on AWS EC2 with Nginx
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-43.205.243.167-00e5a0)](http://43.205.243.167)
-[![Python](https://img.shields.io/badge/Python-3.11-blue)](https://python.org)
-[![React](https://img.shields.io/badge/React-18-61DAFB)](https://react.dev)
-[![AWS](https://img.shields.io/badge/AWS-EC2-FF9900)](https://aws.amazon.com/ec2)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-
----
-
-## What It Does
-
-A production-ready AI-powered question answering system inspired by Perplexity AI. Users ask any question — the system retrieves semantically relevant context using FAISS vector search, then generates a grounded answer via Groq LLM. Runs 24/7 on AWS EC2 with zero local dependencies.
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-43.205.243.167-00b894?style=flat-square)](http://43.205.243.167)
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![AWS](https://img.shields.io/badge/AWS-EC2-FF9900?style=flat-square&logo=amazonaws&logoColor=white)](https://aws.amazon.com/ec2)
 
 ---
 
@@ -22,34 +16,33 @@ A production-ready AI-powered question answering system inspired by Perplexity A
 http://43.205.243.167
 ```
 
+Runs 24/7 on AWS EC2. No login required — open and ask anything.
+
+---
+
+## What It Does
+
+Users type any question. The backend encodes it into a vector, searches the FAISS index for the most semantically relevant chunks from `data.txt`, and passes that context to the Groq LLM to generate a grounded answer. The response is returned to the React frontend via Nginx proxy — no CORS, no latency overhead.
+
 ---
 
 ## Architecture
 
 ```
 User Browser
-     ↓
-Nginx Reverse Proxy (Port 80)
-     ├── Serves React static build
-     └── Proxies /api/* → FastAPI (Port 8000)
-                              ├── FAISS Vector Search
-                              └── Groq LLM API
+     |
+     v
+Nginx (Port 80)
+     |-- Serves React static build  (/var/www/html)
+     |-- Proxies /api/*  ----------> FastAPI (Port 8000)
+                                          |
+                                          |-- rag.py  --> FAISS index (.index)
+                                          |              + chunks.npy
+                                          |
+                                          |-- web_search.py (optional web fallback)
+                                          |
+                                          `-- Groq LLM API
 ```
-
-The entire stack runs on a single AWS EC2 instance (Ubuntu). Nginx handles both static file serving and API proxying, eliminating CORS issues entirely. FastAPI is served via Gunicorn for production-grade concurrency.
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Frontend | React 18, static build served by Nginx |
-| Backend | FastAPI, Gunicorn (production WSGI) |
-| Vector Search | FAISS (semantic similarity retrieval) |
-| LLM | Groq API (llama-3.1-8b-instant) |
-| Proxy | Nginx (reverse proxy + static serving) |
-| Cloud | AWS EC2 Ubuntu, runs 24/7 |
 
 ---
 
@@ -57,55 +50,93 @@ The entire stack runs on a single AWS EC2 instance (Ubuntu). Nginx handles both 
 
 ```
 perplexity-ai/
-│
-├── frontend/                  # React application
-│   ├── src/
-│   │   ├── components/        # UI components
-│   │   ├── App.jsx
-│   │   └── main.jsx
-│   ├── package.json
-│   └── vite.config.js
-│
-├── backend/                   # FastAPI application
-│   ├── main.py                # API routes
-│   ├── rag.py                 # FAISS retrieval pipeline
-│   ├── llm.py                 # Groq LLM integration
-│   ├── ingest.py              # Document ingestion
-│   └── requirements.txt
-│
-├── nginx/
-│   └── default.conf           # Nginx reverse proxy config
-│
-├── deploy/
-│   └── setup.sh               # EC2 deployment script
-│
-├── .env.example
-└── README.md
+|
+|-- app/                        # FastAPI backend
+|   |-- main.py                 # API routes and app entrypoint
+|   |-- rag.py                  # FAISS retrieval pipeline
+|   |-- db.py                   # Database helpers
+|   |-- web_search.py           # Optional web search fallback
+|   |-- local_ingest.py         # Ingest data.txt into FAISS index
+|   |-- data.txt                # Source knowledge base
+|   |-- sample.txt              # Sample documents for testing
+|   |-- faiss_index.index       # Persisted FAISS vector index
+|   |-- chunks.npy              # Numpy array of text chunks
+|   `-- __init__.py
+|
+|-- frontend/                   # React + Vite frontend
+|   |-- src/                    # React source files
+|   |-- public/                 # Static assets
+|   |-- index.html
+|   |-- vite.config.js
+|   |-- package.json
+|   `-- eslint.config.js
+|
+|-- .gitignore
+`-- README.md
 ```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, Vite, served as static build via Nginx |
+| Backend | FastAPI, Gunicorn + Uvicorn workers |
+| Vector Search | FAISS — persisted as `faiss_index.index` + `chunks.npy` |
+| Embeddings | sentence-transformers (local, no API cost) |
+| LLM | Groq API — llama-3.1-8b-instant (500+ tok/s) |
+| Web Fallback | `web_search.py` — optional live web search layer |
+| Proxy | Nginx — reverse proxy + static file serving |
+| Cloud | AWS EC2 Ubuntu — 24/7 independent deployment |
 
 ---
 
 ## How It Works
 
-When a user submits a query, the backend encodes it using a sentence-transformer embedding model and searches the FAISS index for the top-k semantically relevant document chunks. These chunks are passed as context to the Groq LLM, which generates a grounded, cited answer. The response is streamed back to the React frontend via the Nginx proxy.
+**Ingestion** (`local_ingest.py`) reads `data.txt`, splits it into chunks, generates embeddings using sentence-transformers, and saves the FAISS index to `faiss_index.index` and raw chunks to `chunks.npy`. This runs once before deployment.
+
+**Query** (`rag.py`) encodes the user query into a vector, searches `faiss_index.index` for top-k nearest chunks, and returns them as context. `main.py` passes this context to Groq LLM and streams the answer back to the frontend.
+
+**Web search fallback** (`web_search.py`) activates when the FAISS retrieval confidence is low, supplementing local context with live web results.
 
 ---
 
-## Quick Start (Local)
+## Quick Start
+
+### 1. Clone and install
 
 ```bash
-# Clone the repo
 git clone https://github.com/atharvsatpute/perplexity-ai.git
 cd perplexity-ai
+```
 
-# Backend
-cd backend
+### 2. Backend setup
+
+```bash
+cd app
 pip install -r requirements.txt
-cp ../.env.example ../.env       # Add your GROQ_API_KEY
-uvicorn main:app --reload --port 8000
+cp .env.example .env          # add your GROQ_API_KEY
+```
 
-# Frontend (separate terminal)
-cd frontend
+### 3. Ingest your knowledge base
+
+```bash
+# Edit data.txt with your content, then run:
+python local_ingest.py
+# This generates faiss_index.index and chunks.npy
+```
+
+### 4. Start the backend
+
+```bash
+uvicorn main:app --reload --port 8000
+```
+
+### 5. Start the frontend
+
+```bash
+cd ../frontend
 npm install
 npm run dev
 # Open http://localhost:5173
@@ -113,28 +144,27 @@ npm run dev
 
 ---
 
-## Deployment (AWS EC2)
+## AWS EC2 Deployment
 
 ```bash
-# On your EC2 instance (Ubuntu 22.04)
-git clone https://github.com/atharvsatpute/perplexity-ai.git
-cd perplexity-ai
-
-# Install dependencies
-pip install -r backend/requirements.txt
-cd frontend && npm install && npm run build
+# 1. Build React frontend
+cd frontend
+npm run build
 sudo cp -r dist /var/www/html
 
-# Start backend with Gunicorn
-cd backend
-gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --daemon
+# 2. Start FastAPI via Gunicorn (background)
+cd app
+gunicorn main:app \
+  -w 4 \
+  -k uvicorn.workers.UvicornWorker \
+  --bind 0.0.0.0:8000 \
+  --daemon
 
-# Configure Nginx
-sudo cp nginx/default.conf /etc/nginx/sites-available/default
-sudo nginx -t && sudo systemctl reload nginx
+# 3. Configure Nginx
+sudo nano /etc/nginx/sites-available/default
 ```
 
-### Nginx Config
+**Nginx config:**
 
 ```nginx
 server {
@@ -153,6 +183,10 @@ server {
 }
 ```
 
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
 ---
 
 ## Environment Variables
@@ -160,7 +194,8 @@ server {
 ```bash
 GROQ_API_KEY=your_groq_api_key
 EMBEDDING_MODEL=sentence-transformers/all-mpnet-base-v2
-FAISS_INDEX_PATH=./data/index.faiss
+FAISS_INDEX_PATH=./faiss_index.index
+CHUNKS_PATH=./chunks.npy
 TOP_K_RESULTS=5
 ```
 
@@ -168,11 +203,17 @@ TOP_K_RESULTS=5
 
 ## Key Design Decisions
 
-**Why Nginx as reverse proxy?** It eliminates CORS entirely — the browser talks only to port 80, and Nginx routes internally. No `Access-Control-Allow-Origin` headers needed.
+**Why Nginx as reverse proxy?**
+The browser only ever talks to port 80. Nginx routes `/api/*` to FastAPI internally — no `Access-Control-Allow-Origin` headers needed, no CORS issues.
 
-**Why FAISS over a cloud vector DB?** For a single-instance demo, FAISS in-memory is faster, cheaper, and has zero latency overhead versus a remote vector database call.
+**Why FAISS + numpy chunks?**
+`faiss_index.index` and `chunks.npy` are saved to disk so the index survives EC2 restarts without re-ingestion. Fast, zero-cost, no external vector DB dependency.
 
-**Why Groq?** At 500+ tokens/second, Groq makes responses feel instant. Critical for a search UX where users expect sub-second answers.
+**Why Groq?**
+At 500+ tokens/second, Groq makes responses feel instant. For a search interface, perceived latency is everything.
+
+**Why local embeddings?**
+`sentence-transformers` runs on CPU with no API cost, making ingestion free and offline-capable.
 
 ---
 
